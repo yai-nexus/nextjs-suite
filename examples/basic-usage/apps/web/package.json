@@ -1,0 +1,30 @@
+{
+  "name": "@yai-nextjs/web-example",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev",
+    "lint": "next lint",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@yai-nextjs/plugin-support": "workspace:*",
+    "@yai-nextjs/blog-plugin": "workspace:*",
+    "@yai-nextjs/user-plugin": "workspace:*",
+    "@yai-nextjs/shared": "workspace:*",
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "eslint": "^8.42.0",
+    "eslint-config-next": "^15.0.0",
+    "typescript": "^5.0.0"
+  }
+}

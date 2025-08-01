@@ -1,0 +1,64 @@
+{
+  "name": "@yai-nextjs/plugin-support",
+  "version": "0.1.0",
+  "description": "Next.js 15+ App Router 的插件化路由注册系统",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./decorators": {
+      "types": "./dist/decorators/index.d.ts",
+      "import": "./dist/decorators/index.js",
+      "require": "./dist/decorators/index.cjs"
+    }
+  },
+  "files": [
+    "dist/**/*",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts,.tsx",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "nextjs",
+    "plugin",
+    "routing",
+    "app-router",
+    "monorepo",
+    "typescript"
+  ],
+  "author": "YAI Team",
+  "license": "MIT",
+  "peerDependencies": {
+    "next": ">=15.0.0",
+    "react": ">=19.0.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-typescript": "^11.1.0",
+    "@types/jest": "^29.5.0",
+    "@types/react": "^18.2.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.42.0",
+    "jest": "^29.5.0",
+    "rollup": "^3.25.0",
+    "rollup-plugin-dts": "^5.3.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

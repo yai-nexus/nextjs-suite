@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__sequential-thinking__sequentialthinking",
+      "Bash(mkdir:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm install:*)"
+    ],
+    "deny": []
+  }
+}
