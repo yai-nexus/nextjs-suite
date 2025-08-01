@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS';
 
 export interface RouteHandler<TRequest = any, TResponse = any> {
-  (request: NextRequest & { body?: TRequest }): Promise<NextResponse> | NextResponse;
+  (request: NextRequest): Promise<NextResponse> | NextResponse;
 }
 
 export interface RouteConfig {
@@ -44,6 +44,16 @@ export interface PluginMetadata {
   dependencies?: string[];
   createdAt: Date;
   enabled: boolean;
+}
+
+export interface PluginHooks {
+  onInit?: () => void | Promise<void>;
+  onDestroy?: () => void | Promise<void>;
+  onRouteRegister?: (path: string, method: HttpMethod) => void;
+  onRouteUnregister?: (path: string, method: HttpMethod) => void;
+  onRequest?: (request: NextRequest) => void | Promise<void>;
+  onResponse?: (response: NextResponse) => void | Promise<void>;
+  onError?: (error: Error, request: NextRequest) => void | Promise<void>;
 }
 
 export interface PluginConfig extends PluginMetadata {
@@ -90,7 +100,7 @@ export interface PluginStats {
   uptime: number;
 }
 
-export function definePlugin<T extends PluginConfig>(config: T): T {
+export function definePlugin(config: Omit<PluginConfig, 'createdAt' | 'enabled'>): PluginConfig {
   return {
     ...config,
     createdAt: new Date(),
@@ -100,8 +110,8 @@ export function definePlugin<T extends PluginConfig>(config: T): T {
 
 export function createRouteHandler<TRequest = any, TResponse = any>(
   handler: (
-    request: NextRequest & { body?: TRequest },
-    context: PluginContext
+    request: NextRequest,
+    context?: PluginContext
   ) => Promise<NextResponse> | NextResponse
 ): RouteHandler<TRequest, TResponse> {
   return handler as RouteHandler<TRequest, TResponse>;

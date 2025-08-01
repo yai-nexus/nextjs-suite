@@ -51,9 +51,9 @@ describe('Types', () => {
   describe('createRouteHandler', () => {
     it('should create a route handler with context', async () => {
       const handler = createRouteHandler(async (request, context) => {
-        expect(context.request).toBe(request);
-        expect(context.params).toBeDefined();
-        expect(context.searchParams).toBeDefined();
+        expect(context?.request).toBe(request);
+        expect(context?.params).toBeDefined();
+        expect(context?.searchParams).toBeDefined();
         return new NextResponse('handled');
       });
 

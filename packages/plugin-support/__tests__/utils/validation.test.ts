@@ -250,7 +250,7 @@ describe('Validation Utils', () => {
 
       validator.addRule('email', {
         name: 'email',
-        validate: (value) => /\S+@\S+\.\S+/.test(value) || 'Invalid email format',
+        validate: (value: string) => /\S+@\S+\.\S+/.test(value) || 'Invalid email format',
       });
 
       const validData = { name: 'John', email: 'john@example.com' };
@@ -281,7 +281,7 @@ describe('Validation Utils', () => {
       
       validator.addRule('age', {
         name: 'positive',
-        validate: (value) => value > 0,
+        validate: (value: number) => value > 0,
         message: 'Age must be positive',
       });
 

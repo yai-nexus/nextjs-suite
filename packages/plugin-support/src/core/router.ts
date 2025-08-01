@@ -152,7 +152,8 @@ export class PluginRouter {
         if (process.env.NODE_ENV === 'development') {
           debugError(error as Error, {
             plugin: match.plugin.name,
-            middleware: (middleware as any).name || 'anonymous',
+            path: request.url,
+            method: request.method as HttpMethod,
           });
         }
         throw error;

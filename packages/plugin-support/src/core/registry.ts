@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   PluginConfig,
   PluginMetadata,
+  PluginHooks,
   RouteHandler,
   HttpMethod,
   MiddlewareFunction,
@@ -422,7 +423,7 @@ export class PluginRegistry {
 
   private executeHook(
     plugin: PluginConfig,
-    hookName: keyof PluginConfig['hooks'],
+    hookName: keyof PluginHooks,
     ...args: any[]
   ): void {
     if (!plugin.hooks || !plugin.hooks[hookName]) return;
