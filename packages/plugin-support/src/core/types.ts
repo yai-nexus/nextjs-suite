@@ -111,10 +111,36 @@ export function definePlugin(config: Omit<PluginConfig, 'createdAt' | 'enabled'>
 export function createRouteHandler<TRequest = any, TResponse = any>(
   handler: (
     request: NextRequest,
-    context?: PluginContext
+    context: PluginContext
   ) => Promise<NextResponse> | NextResponse
 ): RouteHandler<TRequest, TResponse> {
-  return handler as RouteHandler<TRequest, TResponse>;
+  return async (request: NextRequest) => {
+    // 创建上下文对象
+    const url = new URL(request.url);
+    const context: PluginContext = {
+      request,
+      params: {}, // 这里会在路由匹配时被正确设置
+      searchParams: url.searchParams,
+      headers: request.headers,
+      cookies: parseCookies(request.headers.get('cookie') || ''),
+    };
+
+    return handler(request, context);
+  };
+}
+
+// 辅助函数：解析Cookie
+function parseCookies(cookieHeader: string): Record<string, string> {
+  const cookies: Record<string, string> = {};
+
+  cookieHeader.split(';').forEach(cookie => {
+    const [name, value] = cookie.trim().split('=');
+    if (name && value) {
+      cookies[name] = decodeURIComponent(value);
+    }
+  });
+
+  return cookies;
 }
 
 export function createMiddleware(

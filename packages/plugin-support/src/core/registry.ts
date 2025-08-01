@@ -122,8 +122,20 @@ export class PluginRegistry {
 
   getHandler(path: string, method: HttpMethod): RouteMatch | null {
     const sanitizedPath = sanitizePath(path);
-    const routeMap = this.routes.get(sanitizedPath);
-    
+
+    // 首先尝试精确匹配
+    let routeMap = this.routes.get(sanitizedPath);
+    let matchedRoutePath = sanitizedPath;
+
+    // 如果精确匹配失败，尝试动态路由匹配
+    if (!routeMap) {
+      const matchResult = this.findMatchingRoute(sanitizedPath);
+      if (matchResult) {
+        routeMap = this.routes.get(matchResult.routePath);
+        matchedRoutePath = matchResult.routePath;
+      }
+    }
+
     if (!routeMap) {
       if (this.options.enableDebug) {
         debugRouteMatch(sanitizedPath, method);
@@ -139,17 +151,17 @@ export class PluginRegistry {
       return null;
     }
 
-    const plugin = this.findPluginByRoute(sanitizedPath);
+    const plugin = this.findPluginByRoute(matchedRoutePath);
     if (!plugin) {
       throw new PluginRouteError(
         'unknown',
-        `Route handler found but plugin not found for path: ${sanitizedPath}`,
+        `Route handler found but plugin not found for path: ${matchedRoutePath}`,
         'PLUGIN_NOT_FOUND'
       );
     }
 
-    const middlewares = this.getMiddlewaresForRoute(sanitizedPath);
-    const params = this.extractParams(sanitizedPath, path);
+    const middlewares = this.getMiddlewaresForRoute(matchedRoutePath);
+    const params = this.extractPathParams(matchedRoutePath, sanitizedPath);
 
     if (this.options.enableDebug) {
       debugRouteMatch(sanitizedPath, method, plugin);
@@ -168,23 +180,33 @@ export class PluginRegistry {
     request: NextRequest
   ): Promise<NextResponse> {
     const startTime = Date.now();
-    
-    try {
-      const context: PluginContext = {
-        request,
-        params: match.params,
-        searchParams: new URL(request.url).searchParams,
-        headers: request.headers,
-        cookies: this.parseCookies(request.headers.get('cookie') || ''),
-      };
 
-      let response = match.handler(request);
+    try {
+      // 如果handler是通过createRouteHandler创建的，它会自己处理context
+      // 否则，我们需要传递context作为第二个参数
+      let response: NextResponse | Promise<NextResponse>;
+
+      // 检查handler是否期望context参数
+      if (match.handler.length > 1) {
+        const context: PluginContext = {
+          request,
+          params: match.params,
+          searchParams: new URL(request.url).searchParams,
+          headers: request.headers,
+          cookies: this.parseCookies(request.headers.get('cookie') || ''),
+        };
+
+        response = (match.handler as any)(request, context);
+      } else {
+        response = match.handler(request);
+      }
+
       if (response instanceof Promise) {
         response = await response;
       }
 
       const executionTime = Date.now() - startTime;
-      
+
       if (this.options.enableDebug) {
         debugCollector.debug(`Route executed successfully`, {
           plugin: match.plugin.name,
@@ -199,7 +221,7 @@ export class PluginRegistry {
           plugin: match.plugin.name,
         });
       }
-      
+
       throw error;
     }
   }
@@ -327,16 +349,49 @@ export class PluginRegistry {
     if (!plugin.middlewares) return;
 
     const pluginMiddlewares: MiddlewareFunction[] = [];
-    
+
     for (const middlewareConfig of plugin.middlewares) {
-      this.middlewares.push(middlewareConfig.handler);
-      pluginMiddlewares.push(middlewareConfig.handler);
+      // 创建包装函数来保存优先级信息
+      const wrappedMiddleware = (async (request: NextRequest, next?: any) => {
+        return middlewareConfig.handler(request, next);
+      }) as any;
+
+      // 安全地设置属性
+      try {
+        Object.defineProperty(wrappedMiddleware, 'priority', {
+          value: middlewareConfig.priority || 0,
+          writable: false,
+          enumerable: true,
+          configurable: true
+        });
+        Object.defineProperty(wrappedMiddleware, 'name', {
+          value: middlewareConfig.name,
+          writable: false,
+          enumerable: true,
+          configurable: true
+        });
+        Object.defineProperty(wrappedMiddleware, 'routes', {
+          value: middlewareConfig.routes,
+          writable: false,
+          enumerable: true,
+          configurable: true
+        });
+      } catch (error) {
+        // 如果无法设置属性，使用备用方案
+        wrappedMiddleware._priority = middlewareConfig.priority || 0;
+        wrappedMiddleware._name = middlewareConfig.name;
+        wrappedMiddleware._routes = middlewareConfig.routes;
+      }
+
+      this.middlewares.push(wrappedMiddleware);
+      pluginMiddlewares.push(wrappedMiddleware);
     }
 
+    // 修复排序逻辑：高优先级数字 = 先执行
     this.middlewares.sort((a: any, b: any) => {
-      const aPriority = a.priority || 0;
-      const bPriority = b.priority || 0;
-      return bPriority - aPriority;
+      const aPriority = a.priority || a._priority || 0;
+      const bPriority = b.priority || b._priority || 0;
+      return bPriority - aPriority; // 高优先级在前
     });
 
     this.pluginMiddlewares.set(plugin.name, pluginMiddlewares);
@@ -382,29 +437,79 @@ export class PluginRegistry {
 
   private getMiddlewaresForRoute(path: string): MiddlewareFunction[] {
     return this.middlewares.filter((middleware: any) => {
-      if (!middleware.routes) return true;
-      return middleware.routes.some((route: string) =>
+      const routes = middleware.routes || middleware._routes;
+      if (!routes) return true;
+      return routes.some((route: string) =>
         path.startsWith(sanitizePath(route))
       );
     });
   }
 
-  private extractParams(routePath: string, actualPath: string): Record<string, string> {
-    const params: Record<string, string> = {};
-    
-    const routeParts = routePath.split('/');
-    const actualParts = actualPath.split('/');
-    
+  private findMatchingRoute(actualPath: string): { routePath: string } | null {
+    // 遍历所有注册的路由，寻找匹配的动态路由
+    for (const routePath of this.routes.keys()) {
+      if (this.isRouteMatch(routePath, actualPath)) {
+        return { routePath };
+      }
+    }
+    return null;
+  }
+
+  private isRouteMatch(routePath: string, actualPath: string): boolean {
+    // 移除查询参数
+    const cleanActualPath = actualPath.split('?')[0];
+
+    const routeParts = routePath.split('/').filter(part => part);
+    const actualParts = cleanActualPath.split('/').filter(part => part);
+
+    // 路径段数量必须相同
+    if (routeParts.length !== actualParts.length) {
+      return false;
+    }
+
+    // 逐段比较
     for (let i = 0; i < routeParts.length; i++) {
       const routePart = routeParts[i];
       const actualPart = actualParts[i];
-      
+
+      // 如果是参数段（以:开头），跳过比较
+      if (routePart?.startsWith(':')) {
+        continue;
+      }
+
+      // 静态段必须完全匹配
+      if (routePart !== actualPart) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private extractPathParams(routePath: string, actualPath: string): Record<string, string> {
+    const params: Record<string, string> = {};
+
+    // 移除查询参数
+    const cleanActualPath = actualPath.split('?')[0];
+
+    const routeParts = routePath.split('/').filter(part => part);
+    const actualParts = cleanActualPath.split('/').filter(part => part);
+
+    // 确保路径段数量匹配
+    if (routeParts.length !== actualParts.length) {
+      return params;
+    }
+
+    for (let i = 0; i < routeParts.length; i++) {
+      const routePart = routeParts[i];
+      const actualPart = actualParts[i];
+
       if (routePart?.startsWith(':') && actualPart) {
         const paramName = routePart.slice(1);
         params[paramName] = decodeURIComponent(actualPart);
       }
     }
-    
+
     return params;
   }
 
